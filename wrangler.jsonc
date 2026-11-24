@@ -1,0 +1,11 @@
+{
+  "name": "experiencia-cenoa",
+  "compatibility_date": "2026-11-23",
+  "build": {
+    "command": "npm run build"
+  },
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  }
+}
