@@ -48,6 +48,14 @@ function writeLS(key: string, value: string): void {
   }
 }
 
+function getUrlParams(): URLSearchParams {
+  try {
+    return new URLSearchParams(window.location.search);
+  } catch {
+    return new URLSearchParams();
+  }
+}
+
 /** Aplica sobre los datos remotos las operaciones que todavía no se enviaron. */
 function mergeWithQueue(branches: Branch[], surveys: SurveyEntry[]) {
   const queue = readQueue();
@@ -83,20 +91,35 @@ export default function App() {
   const [pending, setPending] = useState(pendingCount());
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
 
+  const urlParams = useMemo(() => getUrlParams(), []);
   const [activeView, setActiveView] = useState<AppView>('survey');
-  const [activeBranchId, setActiveBranchId] = useState<string>(() =>
-    readLS(STORAGE_ACTIVE_BRANCH, DEFAULT_BRANCHES[0].id)
-  );
-  const [dbFilterBranchId, setDbFilterBranchId] = useState<string>(() =>
-    readLS(STORAGE_DB_FILTER, readLS(STORAGE_ACTIVE_BRANCH, 'all'))
-  );
-  const [isKioskLocked, setIsKioskLocked] = useState<boolean>(
-    () => readLS(STORAGE_KIOSK_LOCKED, 'false') === 'true'
-  );
+  const [activeBranchId, setActiveBranchId] = useState<string>(() => {
+    const fromUrl = urlParams.get('sucursal') || urlParams.get('branch');
+    if (fromUrl && fromUrl.trim()) {
+      const clean = fromUrl.trim();
+      writeLS(STORAGE_ACTIVE_BRANCH, clean);
+      return clean;
+    }
+    return readLS(STORAGE_ACTIVE_BRANCH, DEFAULT_BRANCHES[0].id);
+  });
+  const [dbFilterBranchId, setDbFilterBranchId] = useState<string>(() => {
+    const fromUrl = urlParams.get('sucursal') || urlParams.get('branch');
+    if (fromUrl && fromUrl.trim()) return fromUrl.trim();
+    return readLS(STORAGE_DB_FILTER, readLS(STORAGE_ACTIVE_BRANCH, 'all'));
+  });
+  const [isKioskLocked, setIsKioskLocked] = useState<boolean>(() => {
+    const kioskParam = urlParams.get('tablet') || urlParams.get('kiosk');
+    if (kioskParam === '1' || kioskParam === 'true') {
+      writeLS(STORAGE_KIOSK_LOCKED, 'true');
+      return true;
+    }
+    return readLS(STORAGE_KIOSK_LOCKED, 'false') === 'true';
+  });
   const [kioskPin, setKioskPin] = useState<string>(() => readLS(STORAGE_KIOSK_PIN, ''));
 
-  // Persistimos cache local cada vez que cambian los datos.
+  // Persistimos cache local cada vez que cambian los datos y protegemos contra carreras.
   const stateRef = useRef({ branches, surveys, sheetUrl });
+  const mutationSeqRef = useRef(0);
   useEffect(() => {
     stateRef.current = { branches, surveys, sheetUrl };
     writeCache({ branches, surveys, sheetUrl });
@@ -115,11 +138,17 @@ export default function App() {
     setPending(left);
     if (opts.pull !== false) {
       try {
+        const seqBefore = mutationSeqRef.current;
         const remote = await fetchRemote();
+        if (mutationSeqRef.current !== seqBefore) {
+          setIsLoading(false);
+          return;
+        }
         const merged = mergeWithQueue(
           remote.branches.length ? remote.branches : stateRef.current.branches,
           remote.surveys
         );
+        stateRef.current = { ...stateRef.current, branches: merged.branches, surveys: merged.surveys };
         setBranches(merged.branches);
         setSurveys(merged.surveys);
         if (remote.sheetUrl) setSheetUrl(remote.sheetUrl);
@@ -194,6 +223,7 @@ export default function App() {
 
   /** Guardado optimista: la tablet responde al instante y sincroniza en segundo plano. */
   const handleSubmitVote = async (rating: 1 | 2 | 3 | 4 | 5): Promise<SurveyEntry> => {
+    mutationSeqRef.current += 1;
     const entry: SurveyEntry = {
       id: createId('srv'),
       branchId: activeBranch.id,
@@ -204,7 +234,9 @@ export default function App() {
       tags: [],
       createdAt: new Date().toISOString(),
     };
-    setSurveys((prev) => [entry, ...prev]);
+    const nextSurveys = [entry, ...stateRef.current.surveys];
+    stateRef.current = { ...stateRef.current, surveys: nextSurveys };
+    setSurveys(nextSurveys);
     enqueue({ kind: 'saveSurvey', id: entry.id, payload: entry });
     pushOps();
     return entry;
@@ -212,25 +244,34 @@ export default function App() {
 
   const handleUpdateVoteDetails = async (
     surveyId: string,
-    updates: { area?: SurveyArea; comment?: string; tags?: string[] }
+    updates: { rating?: 1 | 2 | 3 | 4 | 5; area?: SurveyArea; comment?: string; tags?: string[] }
   ) => {
     const current = stateRef.current.surveys.find((s) => s.id === surveyId);
     if (!current) return;
+    mutationSeqRef.current += 1;
     const updated: SurveyEntry = {
       ...current,
+      ...(updates.rating ? { rating: updates.rating } : {}),
       ...(updates.area ? { area: updates.area } : {}),
       ...(typeof updates.comment === 'string'
         ? { comment: updates.comment.trim().slice(0, 280) }
         : {}),
       ...(updates.tags ? { tags: updates.tags } : {}),
     };
-    setSurveys((prev) => prev.map((item) => (item.id === surveyId ? updated : item)));
+    const nextSurveys = stateRef.current.surveys.map((item) =>
+      item.id === surveyId ? updated : item
+    );
+    stateRef.current = { ...stateRef.current, surveys: nextSurveys };
+    setSurveys(nextSurveys);
     enqueue({ kind: 'saveSurvey', id: surveyId, payload: updated });
     pushOps();
   };
 
   const handleDeleteSurvey = async (surveyId: string) => {
-    setSurveys((prev) => prev.filter((item) => item.id !== surveyId));
+    mutationSeqRef.current += 1;
+    const nextSurveys = stateRef.current.surveys.filter((item) => item.id !== surveyId);
+    stateRef.current = { ...stateRef.current, surveys: nextSurveys };
+    setSurveys(nextSurveys);
     enqueue({ kind: 'deleteSurvey', id: surveyId });
     pushOps();
   };
@@ -238,10 +279,11 @@ export default function App() {
   const handleCreateBranch = async (payload: { name: string; city: string }) => {
     const name = payload.name.trim().slice(0, 60);
     if (name.length < 2) throw new Error('Ingresa un nombre de sucursal válido.');
+    mutationSeqRef.current += 1;
     const baseId = slugifyBranchId(name) || createId('sucursal');
     let id = baseId;
     let n = 2;
-    while (branches.some((b) => b.id === id)) id = `${baseId}-${n++}`;
+    while (stateRef.current.branches.some((b) => b.id === id)) id = `${baseId}-${n++}`;
     const branch: Branch = {
       id,
       name,
@@ -251,7 +293,9 @@ export default function App() {
       thankYouTitle: DEFAULT_THANK_YOU_TITLE,
       thankYouSubtitle: DEFAULT_THANK_YOU_SUBTITLE,
     };
-    setBranches((prev) => [...prev, branch]);
+    const nextBranches = [...stateRef.current.branches, branch];
+    stateRef.current = { ...stateRef.current, branches: nextBranches };
+    setBranches(nextBranches);
     enqueue({ kind: 'saveBranch', id, payload: branch });
     pushOps();
     handleSelectActiveBranch(id);
@@ -261,15 +305,18 @@ export default function App() {
     branchId: string,
     payload: { question: string; thankYouTitle: string; thankYouSubtitle: string }
   ) => {
-    const current = branches.find((b) => b.id === branchId);
+    const current = stateRef.current.branches.find((b) => b.id === branchId);
     if (!current) return;
+    mutationSeqRef.current += 1;
     const next: Branch = {
       ...current,
       question: payload.question.trim().slice(0, 160) || current.question,
       thankYouTitle: payload.thankYouTitle.trim().slice(0, 100) || current.thankYouTitle,
       thankYouSubtitle: payload.thankYouSubtitle.trim().slice(0, 200) || current.thankYouSubtitle,
     };
-    setBranches((prev) => prev.map((b) => (b.id === branchId ? next : b)));
+    const nextBranches = stateRef.current.branches.map((b) => (b.id === branchId ? next : b));
+    stateRef.current = { ...stateRef.current, branches: nextBranches };
+    setBranches(nextBranches);
     enqueue({ kind: 'saveBranch', id: branchId, payload: next });
     pushOps();
   };
@@ -332,9 +379,11 @@ export default function App() {
             branches={branches}
             selectedBranchId={dbFilterBranchId}
             isLoading={isLoading}
+            syncState={syncState}
             sheetUrl={sheetUrl}
             lastSyncAt={lastSyncAt}
             onRefresh={() => syncNow()}
+            onOpenSettings={() => setActiveView('branches')}
             onDeleteSurvey={handleDeleteSurvey}
           />
         )}

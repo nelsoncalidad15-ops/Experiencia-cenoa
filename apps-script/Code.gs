@@ -21,8 +21,13 @@
  *  ✏️ Editar → Versión: "Nueva versión" → Implementar (la URL no cambia).
  */
 
+// Opcional: si creás el script de forma independiente (no desde Extensiones → Apps Script),
+// pegá aquí el ID de tu Google Sheet (lo sacás de la URL: /spreadsheets/d/<ID>/edit).
+const SPREADSHEET_ID = '';
+
 const SHEET_SURVEYS = 'Encuestas';
 const SHEET_BRANCHES = 'Sucursales';
+const SHEET_SUMMARY = 'Resumen';
 const TIMEZONE = 'America/Argentina/Jujuy';
 
 const SURVEY_HEADERS = [
@@ -31,6 +36,9 @@ const SURVEY_HEADERS = [
 ];
 const BRANCH_HEADERS = [
   'ID', 'Nombre', 'Grupo', 'Ciudad', 'Pregunta', 'Título gracias', 'Mensaje gracias',
+];
+const SUMMARY_HEADERS = [
+  'Sucursal', 'Total', 'Promedio ★', 'Satisfacción (4-5★)', '5★', '4★', '3★', '2★', '1★',
 ];
 
 const RATING_LABELS = {
@@ -63,7 +71,7 @@ function doGet(e) {
         ok: true,
         branches: readBranches_(),
         surveys: readSurveys_(),
-        sheetUrl: SpreadsheetApp.getActive().getUrl(),
+        sheetUrl: getSpreadsheet_().getUrl(),
       });
     }
     if (action === 'ping') return json_({ ok: true, ts: new Date().toISOString() });
@@ -169,9 +177,10 @@ function rowToSurvey_(r) {
     area: String(r[7] || 'General'),
     tags: r[8] ? String(r[8]).split(',').map(function (t) { return t.trim(); }).filter(String) : [],
     comment: String(r[9] || ''),
-    createdAt: r[10] instanceof Date
+    createdAt: (r[10] instanceof Date
       ? r[10].toISOString()
-      : String(r[10] || (r[1] instanceof Date ? r[1].toISOString() : '')),
+      : String(r[10] || (r[1] instanceof Date ? r[1].toISOString() : ''))
+    ).replace(/^'/, ''),
   };
 }
 
@@ -229,8 +238,20 @@ function seedBranches_(sh) {
 //  Utilidades
 // ------------------------------------------------------------
 
+function getSpreadsheet_() {
+  var ss = SPREADSHEET_ID
+    ? SpreadsheetApp.openById(SPREADSHEET_ID)
+    : SpreadsheetApp.getActive();
+  if (!ss) {
+    throw new Error(
+      'No se encontró la planilla activa. Configurá SPREADSHEET_ID en Code.gs o abrí el script desde la planilla (Extensiones → Apps Script).'
+    );
+  }
+  return ss;
+}
+
 function sheet_(name, headers) {
-  const ss = SpreadsheetApp.getActive();
+  const ss = getSpreadsheet_();
   let sh = ss.getSheetByName(name);
   if (!sh) {
     sh = ss.insertSheet(name);
@@ -275,7 +296,7 @@ function json_(obj) {
 // ------------------------------------------------------------
 
 function setup() {
-  const ss = SpreadsheetApp.getActive();
+  const ss = getSpreadsheet_();
   ss.setSpreadsheetTimeZone(TIMEZONE);
 
   const surveys = sheet_(SHEET_SURVEYS, SURVEY_HEADERS);
@@ -302,6 +323,50 @@ function setup() {
   if (branches.getLastRow() < 2) seedBranches_(branches);
   branches.setColumnWidths(1, BRANCH_HEADERS.length, 160);
   branches.setColumnWidth(5, 320);
+
+  // Pestaña de resumen automático con fórmulas en inglés (Sheets las traduce al mostrar)
+  const summary = sheet_(SHEET_SUMMARY, SUMMARY_HEADERS);
+  formatSheet_(summary, SUMMARY_HEADERS);
+  summary.setColumnWidth(1, 220);
+  summary.setColumnWidths(2, SUMMARY_HEADERS.length - 1, 120);
+  summary.setColumnWidth(4, 150);
+
+  const summaryRows = [
+    [
+      'TOTAL GENERAL',
+      '=COUNTA(Encuestas!A2:A)',
+      '=IFERROR(AVERAGE(Encuestas!F2:F),0)',
+      '=IFERROR(COUNTIF(Encuestas!F2:F,">=4")/B2,0)',
+      '=COUNTIF(Encuestas!F2:F,5)',
+      '=COUNTIF(Encuestas!F2:F,4)',
+      '=COUNTIF(Encuestas!F2:F,3)',
+      '=COUNTIF(Encuestas!F2:F,2)',
+      '=COUNTIF(Encuestas!F2:F,1)',
+    ],
+  ];
+
+  for (var i = 0; i < 20; i++) {
+    var bRow = 2 + i;
+    var sRow = 3 + i;
+    summaryRows.push([
+      '=IF(Sucursales!B' + bRow + '="","",Sucursales!B' + bRow + ')',
+      '=IF(Sucursales!A' + bRow + '="","",COUNTIF(Encuestas!$D$2:$D,Sucursales!A' + bRow + '))',
+      '=IF(Sucursales!A' + bRow + '="","",IFERROR(AVERAGEIF(Encuestas!$D$2:$D,Sucursales!A' + bRow + ',Encuestas!$F$2:$F),0))',
+      '=IF(Sucursales!A' + bRow + '="","",IFERROR(COUNTIFS(Encuestas!$D$2:$D,Sucursales!A' + bRow + ',Encuestas!$F$2:$F,">=4")/B' + sRow + ',0))',
+      '=IF(Sucursales!A' + bRow + '="","",COUNTIFS(Encuestas!$D$2:$D,Sucursales!A' + bRow + ',Encuestas!$F$2:$F,5))',
+      '=IF(Sucursales!A' + bRow + '="","",COUNTIFS(Encuestas!$D$2:$D,Sucursales!A' + bRow + ',Encuestas!$F$2:$F,4))',
+      '=IF(Sucursales!A' + bRow + '="","",COUNTIFS(Encuestas!$D$2:$D,Sucursales!A' + bRow + ',Encuestas!$F$2:$F,3))',
+      '=IF(Sucursales!A' + bRow + '="","",COUNTIFS(Encuestas!$D$2:$D,Sucursales!A' + bRow + ',Encuestas!$F$2:$F,2))',
+      '=IF(Sucursales!A' + bRow + '="","",COUNTIFS(Encuestas!$D$2:$D,Sucursales!A' + bRow + ',Encuestas!$F$2:$F,1))',
+    ]);
+  }
+
+  summary.getRange(2, 1, summaryRows.length, SUMMARY_HEADERS.length).setValues(summaryRows);
+  summary.getRange(2, 1, 1, SUMMARY_HEADERS.length).setFontWeight('bold').setBackground('#f1f5f9');
+  summary.getRange(2, 2, summaryRows.length, 1).setNumberFormat('#,##0');
+  summary.getRange(2, 3, summaryRows.length, 1).setNumberFormat('0.00');
+  summary.getRange(2, 4, summaryRows.length, 1).setNumberFormat('0.0%');
+  summary.getRange(2, 5, summaryRows.length, 5).setNumberFormat('#,##0');
 
   // Quita la "Hoja 1" vacía si existe
   const blank = ss.getSheetByName('Hoja 1') || ss.getSheetByName('Sheet1');

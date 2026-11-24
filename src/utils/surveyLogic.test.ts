@@ -2,15 +2,18 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   DEFAULT_BRANCHES,
+  IMPROVE_TAGS,
+  POSITIVE_TAGS,
   computeBranchStats,
   filterSurveys,
   formatCsv,
   formatTsvForSheets,
   getRatingLabel,
+  getTagsForRating,
   slugifyBranchId,
   validateSurveyVoteInput,
-} from './surveyLogic';
-import type { SurveyEntry } from '../types/survey';
+} from './surveyLogic.ts';
+import type { SurveyEntry } from '../types/survey.ts';
 
 const SAMPLE_SURVEYS: SurveyEntry[] = [
   {
@@ -19,6 +22,7 @@ const SAMPLE_SURVEYS: SurveyEntry[] = [
     branchName: 'Autosol Jujuy',
     rating: 5,
     area: 'Ventas',
+    tags: ['Amabilidad', 'Rapidez'],
     comment: 'Excelente atención del asesor.',
     createdAt: '2026-11-24T10:15:00.000Z',
   },
@@ -97,19 +101,36 @@ test('filterSurveys filters by branchId, ratingFilter, and searchQuery', () => {
   });
   assert.equal(byRating.length, 1);
   assert.equal(byRating[0].id, 's1');
+
+  const byTag = filterSurveys(SAMPLE_SURVEYS, {
+    branchId: 'all',
+    ratingFilter: 'all',
+    searchQuery: 'rapidez',
+  });
+  assert.equal(byTag.length, 1);
+  assert.equal(byTag[0].id, 's1');
 });
 
-test('formatCsv escapes quotes and commas with UTF-8 BOM for Google Sheets / Excel', () => {
+test('formatCsv escapes quotes and commas with UTF-8 BOM and includes Motivos for Google Sheets / Excel', () => {
   const csv = formatCsv(SAMPLE_SURVEYS);
-  assert.ok(csv.startsWith('\uFEFFID,Fecha y Hora,Sucursal,Estrellas'));
+  assert.ok(csv.startsWith('\uFEFFID,Fecha y Hora,Sucursal,Estrellas,Calificación,Área,Motivos,Comentario'));
+  assert.ok(csv.includes('"Amabilidad, Rapidez"'));
   assert.ok(csv.includes('"Demora en entrega, ""muy lento""."'));
 });
 
-test('formatTsvForSheets creates clean tab-separated rows', () => {
+test('formatTsvForSheets creates clean tab-separated rows with Motivos', () => {
   const tsv = formatTsvForSheets(SAMPLE_SURVEYS);
   const lines = tsv.split('\n');
   assert.equal(lines.length, 4);
-  assert.ok(lines[1].includes('\tAutosol Jujuy\t5\tExcelente\tVentas\t'));
+  assert.ok(lines[0].includes('\tMotivos\tComentario'));
+  assert.ok(lines[1].includes('\tAutosol Jujuy\t5\tExcelente\tVentas\tAmabilidad, Rapidez\t'));
+});
+
+test('getTagsForRating returns positive tags for 4-5 and improvement tags for 1-3', () => {
+  assert.deepEqual(getTagsForRating(5), POSITIVE_TAGS);
+  assert.deepEqual(getTagsForRating(4), POSITIVE_TAGS);
+  assert.deepEqual(getTagsForRating(3), IMPROVE_TAGS);
+  assert.deepEqual(getTagsForRating(1), IMPROVE_TAGS);
 });
 
 test('validateSurveyVoteInput validates rating range and branchId', () => {

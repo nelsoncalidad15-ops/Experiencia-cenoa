@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import {
   Car,
   Check,
@@ -23,7 +23,7 @@ interface SurveyKioskProps {
   onSubmitVote: (rating: 1 | 2 | 3 | 4 | 5) => Promise<SurveyEntry>;
   onUpdateVoteDetails: (
     surveyId: string,
-    updates: { area?: SurveyArea; comment?: string; tags?: string[] }
+    updates: { rating?: 1 | 2 | 3 | 4 | 5; area?: SurveyArea; comment?: string; tags?: string[] }
   ) => Promise<void>;
 }
 
@@ -83,10 +83,11 @@ function SyncBadge({ state, pending }: { state: SyncState; pending: number }) {
 }
 
 function StarIcon({ filled, className = '' }: { filled: boolean; className?: string }) {
+  const gradId = useId();
   return (
     <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
       <defs>
-        <linearGradient id="kiosk-star-gold" x1="0%" y1="0%" x2="100%" y2="100%">
+        <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stopColor="#FDE68A" />
           <stop offset="45%" stopColor="#F5B931" />
           <stop offset="100%" stopColor="#C2780A" />
@@ -94,7 +95,7 @@ function StarIcon({ filled, className = '' }: { filled: boolean; className?: str
       </defs>
       <path
         d={STAR_PATH}
-        fill={filled ? 'url(#kiosk-star-gold)' : 'none'}
+        fill={filled ? `url(#${gradId})` : 'none'}
         stroke={filled ? '#F5B931' : 'rgba(255,255,255,0.35)'}
         strokeWidth={filled ? 0.8 : 1.3}
         strokeLinejoin="round"
@@ -129,6 +130,7 @@ export function SurveyKiosk({
 
   const now = useClock();
   const finishingRef = useRef(false);
+  const initialRatingRef = useRef<Rating | null>(null);
   const accent = GROUP_ACCENT[branch.group] ?? GROUP_ACCENT.Otro;
   const logos = GROUP_LOGOS[branch.group] ?? [];
 
@@ -143,6 +145,7 @@ export function SurveyKiosk({
     setError(null);
     setSecondsLeft(DETAILS_IDLE_SECONDS);
     finishingRef.current = false;
+    initialRatingRef.current = null;
   }, []);
 
   useEffect(() => {
@@ -152,12 +155,17 @@ export function SurveyKiosk({
   const finishDetails = useCallback(async () => {
     if (!survey || finishingRef.current) return;
     finishingRef.current = true;
-    const hasDetails = area || tags.length > 0 || comment.trim().length > 0;
+    const ratingChanged =
+      initialRatingRef.current !== null && survey.rating !== initialRatingRef.current;
+    const hasDetails = Boolean(
+      ratingChanged || area || tags.length > 0 || comment.trim().length > 0
+    );
     setStep('done');
     setSecondsLeft(DONE_SECONDS);
     if (hasDetails) {
       try {
         await onUpdateVoteDetails(survey.id, {
+          rating: survey.rating,
           area: area ?? 'General',
           tags,
           comment: comment.trim(),
@@ -196,6 +204,7 @@ export function SurveyKiosk({
         onSubmitVote(value),
         new Promise((r) => window.setTimeout(r, 650)), // deja ver la animación
       ]);
+      initialRatingRef.current = created.rating;
       setSurvey(created);
       setSecondsLeft(DETAILS_IDLE_SECONDS);
       setStep('details');
@@ -203,6 +212,18 @@ export function SurveyKiosk({
       setRating(null);
       setError(err instanceof Error ? err.message : 'No pudimos registrar tu calificación.');
     }
+  };
+
+  const handleChangeRating = (value: Rating) => {
+    if (!survey) return;
+    bumpActivity();
+    const prevRating = survey.rating;
+    if (prevRating === value) return;
+    if ((prevRating >= 4) !== (value >= 4)) {
+      setTags([]);
+    }
+    setRating(value);
+    setSurvey({ ...survey, rating: value });
   };
 
   const toggleTag = (tag: string) => {
@@ -267,7 +288,7 @@ export function SurveyKiosk({
                   <img
                     src={logo.src}
                     alt={logo.alt}
-                    className="h-full w-full object-contain mix-blend-multiply"
+                    className={`h-full w-full object-contain mix-blend-multiply ${logo.scaleClass ?? ''}`}
                   />
                 </div>
               ))
@@ -304,7 +325,7 @@ export function SurveyKiosk({
       </header>
 
       {/* Contenido */}
-      <div className="relative z-10 flex flex-1 items-center justify-center px-5 py-8 sm:px-10">
+      <div className="relative z-10 flex flex-1 items-center justify-center px-5 py-4 sm:px-10 sm:py-6">
         {step === 'rate' && (
           <div key="rate" className="kiosk-enter flex w-full max-w-4xl flex-col items-center text-center">
             <span className="inline-flex items-center gap-2 rounded-full border border-amber-300/20 bg-amber-300/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-amber-200">
@@ -341,7 +362,7 @@ export function SurveyKiosk({
                     onBlur={() => setHovered(null)}
                     onClick={() => handleRate(value)}
                     style={{ animationDelay: `${value * 60}ms` }}
-                    className={`kiosk-star group relative flex aspect-[4/5] flex-col items-center justify-center gap-2 rounded-2xl border transition-all duration-200 ease-out cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 sm:rounded-3xl ${
+                    className={`kiosk-star group relative flex aspect-[4/5] flex-col items-center justify-center gap-2 rounded-2xl border transition-all duration-200 ease-out active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 sm:rounded-3xl ${
                       filled
                         ? 'border-amber-300/40 bg-gradient-to-b from-amber-300/15 to-amber-500/5 shadow-[0_20px_50px_-20px_rgba(245,185,49,0.55)] -translate-y-1'
                         : 'border-white/10 bg-white/[0.04] hover:border-white/20'
@@ -387,28 +408,38 @@ export function SurveyKiosk({
 
         {step === 'details' && survey && (
           <div key="details" className="kiosk-enter w-full max-w-3xl">
-            <div className="rounded-[28px] border border-white/10 bg-white/[0.06] p-6 shadow-2xl shadow-black/40 backdrop-blur-xl sm:p-10">
+            <div className="rounded-[28px] border border-white/10 bg-white/[0.06] p-5 shadow-2xl shadow-black/40 backdrop-blur-xl sm:p-8">
               <div className="flex flex-col items-center text-center">
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1" role="group" aria-label="Cambiar calificación">
                   {STARS.map((v) => (
-                    <StarIcon key={v} filled={v <= survey.rating} className="h-7 w-7 sm:h-8 sm:w-8" />
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => handleChangeRating(v)}
+                      title={`Cambiar calificación a ${v} ${v === 1 ? 'estrella' : 'estrellas'}`}
+                      aria-label={`Cambiar calificación a ${v} ${v === 1 ? 'estrella' : 'estrellas'}`}
+                      aria-pressed={v === survey.rating}
+                      className="rounded-lg p-1 transition-transform hover:scale-110 active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
+                    >
+                      <StarIcon filled={v <= survey.rating} className="h-7 w-7 sm:h-8 sm:w-8" />
+                    </button>
                   ))}
                 </div>
-                <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight sm:text-4xl">
+                <h2 className="mt-3 font-display text-2xl font-semibold tracking-tight sm:text-3xl">
                   {isPositive ? '¡Gracias! Nos alegra mucho.' : 'Gracias por contarnos.'}
                 </h2>
-                <p className="mt-2 text-sm text-white/55 sm:text-base">
+                <p className="mt-1.5 text-sm text-white/55 sm:text-base">
                   {isPositive
                     ? 'Si querés, contanos qué fue lo que más te gustó.'
                     : 'Tu respuesta nos ayuda a mejorar. ¿Qué podemos hacer mejor?'}
                 </p>
               </div>
 
-              <div className="mt-8">
+              <div className="mt-5">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/40">
                   ¿Qué área visitaste?
                 </p>
-                <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+                <div className="mt-2.5 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
                   {SURVEY_AREAS.map((a) => {
                     const Icon = AREA_ICONS[a] ?? Car;
                     const active = area === a;
@@ -421,7 +452,7 @@ export function SurveyKiosk({
                           setArea(active ? null : a);
                         }}
                         aria-pressed={active}
-                        className={`flex min-h-[72px] flex-col items-center justify-center gap-1.5 rounded-2xl border px-3 py-3 text-sm font-medium transition-all cursor-pointer ${
+                        className={`flex min-h-[60px] flex-col items-center justify-center gap-1.5 rounded-2xl border px-3 py-2.5 text-sm font-medium transition-all cursor-pointer ${
                           active
                             ? 'border-amber-300/60 bg-amber-300 text-slate-900 shadow-[0_10px_30px_-10px_rgba(245,185,49,0.7)]'
                             : 'border-white/10 bg-white/[0.04] text-white/80 hover:bg-white/10'
@@ -435,11 +466,11 @@ export function SurveyKiosk({
                 </div>
               </div>
 
-              <div className="mt-7">
+              <div className="mt-5">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/40">
                   {isPositive ? 'Lo que más destacás' : 'Qué podríamos mejorar'}
                 </p>
-                <div className="mt-3 flex flex-wrap gap-2">
+                <div className="mt-2.5 flex flex-wrap gap-2">
                   {getTagsForRating(survey.rating).map((tag) => {
                     const active = tags.includes(tag);
                     return (
@@ -448,7 +479,7 @@ export function SurveyKiosk({
                         type="button"
                         onClick={() => toggleTag(tag)}
                         aria-pressed={active}
-                        className={`inline-flex min-h-[44px] items-center gap-1.5 rounded-full border px-4 py-2 text-sm transition-all cursor-pointer ${
+                        className={`inline-flex min-h-[40px] items-center gap-1.5 rounded-full border px-4 py-1.5 text-sm transition-all cursor-pointer ${
                           active
                             ? 'border-white bg-white text-slate-900'
                             : 'border-white/15 bg-transparent text-white/75 hover:border-white/30'
@@ -462,7 +493,7 @@ export function SurveyKiosk({
                 </div>
               </div>
 
-              <div className="mt-7">
+              <div className="mt-5">
                 <label
                   htmlFor="kiosk-comment"
                   className="text-xs font-semibold uppercase tracking-[0.16em] text-white/40"
@@ -479,11 +510,11 @@ export function SurveyKiosk({
                     setComment(e.target.value);
                   }}
                   placeholder="Escribí aquí…"
-                  className="mt-3 w-full resize-none rounded-2xl border border-white/10 bg-black/20 px-4 py-3.5 text-base text-white placeholder:text-white/30 focus:border-amber-300/50 focus:outline-none focus:ring-2 focus:ring-amber-300/20"
+                  className="mt-2.5 w-full resize-none rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-base text-white placeholder:text-white/30 focus:border-amber-300/50 focus:outline-none focus:ring-2 focus:ring-amber-300/20"
                 />
               </div>
 
-              <div className="mt-8 flex flex-col-reverse items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="mt-6 flex flex-col-reverse items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <span className="text-center text-xs tabular-nums text-white/35 sm:text-left">
                   Se enviará automáticamente en {secondsLeft}s
                 </span>
@@ -491,14 +522,14 @@ export function SurveyKiosk({
                   <button
                     type="button"
                     onClick={() => void finishDetails()}
-                    className="min-h-[52px] flex-1 rounded-2xl border border-white/15 px-6 text-sm font-medium text-white/70 transition hover:bg-white/5 cursor-pointer sm:flex-none"
+                    className="min-h-[48px] flex-1 rounded-2xl border border-white/15 px-6 text-sm font-medium text-white/70 transition hover:bg-white/5 cursor-pointer sm:flex-none"
                   >
                     Omitir
                   </button>
                   <button
                     type="button"
                     onClick={() => void finishDetails()}
-                    className="min-h-[52px] flex-1 rounded-2xl bg-gradient-to-b from-amber-200 to-amber-400 px-8 text-sm font-semibold text-slate-900 shadow-[0_14px_40px_-12px_rgba(245,185,49,0.8)] transition hover:brightness-105 active:translate-y-px cursor-pointer sm:flex-none"
+                    className="min-h-[48px] flex-1 rounded-2xl bg-gradient-to-b from-amber-200 to-amber-400 px-8 text-sm font-semibold text-slate-900 shadow-[0_14px_40px_-12px_rgba(245,185,49,0.8)] transition hover:brightness-105 active:translate-y-px cursor-pointer sm:flex-none"
                   >
                     Enviar respuesta
                   </button>

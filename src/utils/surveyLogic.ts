@@ -228,6 +228,7 @@ export function formatCsv(surveys: SurveyEntry[]): string {
     'Estrellas',
     'Calificación',
     'Área',
+    'Motivos',
     'Comentario',
   ];
 
@@ -238,6 +239,7 @@ export function formatCsv(surveys: SurveyEntry[]): string {
     escapeCsvCell(entry.rating),
     escapeCsvCell(getRatingLabel(entry.rating)),
     escapeCsvCell(entry.area),
+    escapeCsvCell((entry.tags ?? []).join(', ')),
     escapeCsvCell(entry.comment),
   ]);
 
@@ -252,6 +254,7 @@ export function formatTsvForSheets(surveys: SurveyEntry[]): string {
     'Estrellas',
     'Calificación',
     'Área',
+    'Motivos',
     'Comentario',
   ];
 
@@ -265,6 +268,7 @@ export function formatTsvForSheets(surveys: SurveyEntry[]): string {
       sanitizeTsv(entry.rating),
       sanitizeTsv(getRatingLabel(entry.rating)),
       sanitizeTsv(entry.area),
+      sanitizeTsv((entry.tags ?? []).join(', ')),
       sanitizeTsv(entry.comment),
     ].join('\t')
   );

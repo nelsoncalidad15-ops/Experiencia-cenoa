@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Check, Plus, Shield, Sheet, Loader2 } from 'lucide-react';
+import { Check, Link2, Plus, Shield, Sheet, Loader2 } from 'lucide-react';
 import type { Branch, SyncState } from '../types/survey';
 import { DealershipLogo } from './DealershipLogo';
 import { fetchRemote, getEnvScriptUrl, getScriptUrl, setScriptUrl } from '../services/api';
@@ -34,7 +34,10 @@ function ConnectionCard({
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = url.trim();
-    if (trimmed && !/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(trimmed)) {
+    if (
+      trimmed &&
+      !/^https:\/\/script\.google\.com\/(a\/macros\/[^/]+\/|macros\/)s\/[^/]+\/exec$/.test(trimmed)
+    ) {
       setResult({ ok: false, msg: 'La URL debe terminar en /exec (Implementación de Apps Script).' });
       return;
     }
@@ -126,6 +129,7 @@ export function BranchesManager({
 
   const [pinDraft, setPinDraft] = useState(kioskPin);
   const [pinSaved, setPinSaved] = useState(false);
+  const [copiedBranchId, setCopiedBranchId] = useState<string | null>(null);
 
   useEffect(() => {
     setQuestion(activeBranch.question);
@@ -177,6 +181,24 @@ export function BranchesManager({
     onSaveKioskPin(pinDraft.trim());
     setPinSaved(true);
     window.setTimeout(() => setPinSaved(false), 2500);
+  };
+
+  const handleCopyBranchLink = async (branchId: string) => {
+    const link = `${window.location.origin}/?sucursal=${encodeURIComponent(branchId)}&tablet=1`;
+    try {
+      await navigator.clipboard.writeText(link);
+    } catch {
+      const textarea = document.createElement('textarea');
+      textarea.value = link;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+    }
+    setCopiedBranchId(branchId);
+    window.setTimeout(() => {
+      setCopiedBranchId((prev) => (prev === branchId ? null : prev));
+    }, 2000);
   };
 
   return (
@@ -286,26 +308,47 @@ export function BranchesManager({
             <div className="mt-3 divide-y divide-slate-100 rounded-lg border border-slate-200">
               {branches.map((branch) => {
                 const isCurrent = branch.id === activeBranch.id;
+                const isCopied = copiedBranchId === branch.id;
                 return (
                   <div
                     key={branch.id}
-                    className="flex items-center justify-between gap-3 px-4 py-3"
+                    className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
                   >
                     <div>
                       <div className="text-sm font-medium text-slate-900">{branch.name}</div>
                       <div className="text-xs text-slate-500">{branch.city}</div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => onSelectActiveBranch(branch.id)}
-                      className={`min-h-[36px] rounded-lg px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
-                        isCurrent
-                          ? 'bg-amber-50 text-amber-800 ring-1 ring-amber-300'
-                          : 'border border-slate-200 text-slate-700 hover:bg-slate-50'
-                      }`}
-                    >
-                      {isCurrent ? 'Activa en esta tablet' : 'Usar en esta tablet'}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void handleCopyBranchLink(branch.id)}
+                        title={`Copiar link directo en modo tablet para ${branch.name}`}
+                        className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 cursor-pointer"
+                      >
+                        {isCopied ? (
+                          <>
+                            <Check className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
+                            <span className="text-emerald-700">Link copiado</span>
+                          </>
+                        ) : (
+                          <>
+                            <Link2 className="h-3.5 w-3.5 text-slate-500" aria-hidden="true" />
+                            <span>Link tablet</span>
+                          </>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onSelectActiveBranch(branch.id)}
+                        className={`min-h-[36px] rounded-lg px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
+                          isCurrent
+                            ? 'bg-amber-50 text-amber-800 ring-1 ring-amber-300'
+                            : 'border border-slate-200 text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        {isCurrent ? 'Activa en esta tablet' : 'Usar en esta tablet'}
+                      </button>
+                    </div>
                   </div>
                 );
               })}

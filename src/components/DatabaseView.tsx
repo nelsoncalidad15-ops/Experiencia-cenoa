@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Check, Copy, Download, ExternalLink, RefreshCw, Search, Star, Trash2 } from 'lucide-react';
-import type { Branch, SurveyEntry } from '../types/survey';
+import type { Branch, SurveyEntry, SyncState } from '../types/survey';
 import {
   computeBranchStats,
   filterSurveys,
@@ -15,9 +15,11 @@ interface DatabaseViewProps {
   branches: Branch[];
   selectedBranchId: string;
   isLoading: boolean;
+  syncState?: SyncState;
   sheetUrl?: string;
   lastSyncAt?: string | null;
   onRefresh?: () => void;
+  onOpenSettings?: () => void;
   onDeleteSurvey: (id: string) => Promise<void>;
 }
 
@@ -28,9 +30,11 @@ export function DatabaseView({
   branches,
   selectedBranchId,
   isLoading,
+  syncState,
   sheetUrl,
   lastSyncAt,
   onRefresh,
+  onOpenSettings,
   onDeleteSurvey,
 }: DatabaseViewProps) {
   const [ratingFilter, setRatingFilter] = useState<number | 'all'>('all');
@@ -172,6 +176,23 @@ export function DatabaseView({
           </button>
         </div>
       </div>
+
+      {syncState === 'local' && (
+        <div className="mt-5 flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-xs text-amber-900 sm:flex-row sm:items-center sm:justify-between">
+          <span>
+            <strong>Modo local:</strong> las encuestas se están guardando solo en este dispositivo hasta que conectes Google Sheets.
+          </span>
+          {onOpenSettings && (
+            <button
+              type="button"
+              onClick={onOpenSettings}
+              className="inline-flex min-h-[34px] shrink-0 items-center justify-center rounded-lg border border-amber-300 bg-white px-3 py-1.5 font-medium text-amber-900 hover:bg-amber-100 cursor-pointer"
+            >
+              Conectar Google Sheets
+            </button>
+          )}
+        </div>
+      )}
 
       {/* KPI Strip */}
       <div className="mt-6 grid grid-cols-2 divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white sm:grid-cols-4 sm:divide-x sm:divide-y-0">
