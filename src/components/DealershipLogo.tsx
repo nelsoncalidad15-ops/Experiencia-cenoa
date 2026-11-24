@@ -15,26 +15,26 @@ export interface BrandLogoAsset {
 export const GROUP_LOGOS: Record<DealershipGroup, BrandLogoAsset[]> = {
   Autosol: [
     {
-      src: '/assets/aistudio/Logo_VW_-_422b7499.png',
+      src: 'assets/aistudio/Logo_VW_-_422b7499.png',
       alt: 'Logo Volkswagen',
       scaleClass: 'scale-105',
     },
   ],
   Autolux: [
     {
-      src: '/assets/aistudio/Logo_Toyota-_93a2c03d.png',
+      src: 'assets/aistudio/Logo_Toyota-_93a2c03d.png',
       alt: 'Logo Toyota',
       scaleClass: 'scale-100',
     },
   ],
   Autociel: [
     {
-      src: '/assets/aistudio/Logo_Peugeot-_b1819b42.png',
+      src: 'assets/aistudio/Logo_Peugeot-_b1819b42.png',
       alt: 'Logo Peugeot',
       scaleClass: 'scale-105',
     },
     {
-      src: '/assets/aistudio/Logo_Citroen_62571d84.png',
+      src: 'assets/aistudio/Logo_Citroen_62571d84.png',
       alt: 'Logo Citroën',
       scaleClass: 'scale-95',
     },

@@ -184,7 +184,8 @@ export function BranchesManager({
   };
 
   const handleCopyBranchLink = async (branchId: string) => {
-    const link = `${window.location.origin}/?sucursal=${encodeURIComponent(branchId)}&tablet=1`;
+    const base = `${window.location.origin}${window.location.pathname}`;
+    const link = `${base}?sucursal=${encodeURIComponent(branchId)}&tablet=1`;
     try {
       await navigator.clipboard.writeText(link);
     } catch {
