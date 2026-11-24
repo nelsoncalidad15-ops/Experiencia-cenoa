@@ -118,7 +118,7 @@ function saveSurvey_(p) {
 
   const created = p.createdAt ? new Date(p.createdAt) : new Date();
   const date = isNaN(created.getTime()) ? new Date() : created;
-  const area = VALID_AREAS.indexOf(p.area) >= 0 ? p.area : 'General';
+  const area = VALID_AREAS.indexOf(p.area) >= 0 ? p.area : 'Ventas';
   const tags = Array.isArray(p.tags) ? p.tags.map(function (t) { return clean_(t, 40); }).filter(String) : [];
 
   const row = [

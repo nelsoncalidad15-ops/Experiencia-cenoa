@@ -229,7 +229,7 @@ export default function App() {
       branchId: activeBranch.id,
       branchName: activeBranch.name,
       rating,
-      area: 'General',
+      area: 'Ventas',
       comment: '',
       tags: [],
       createdAt: new Date().toISOString(),

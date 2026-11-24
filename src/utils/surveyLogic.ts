@@ -67,23 +67,23 @@ export const SURVEY_AREAS: SurveyArea[] = [
   'Administración',
 ];
 
-/** Motivos rápidos según la calificación (positivo vs. a mejorar). */
+/** Motivos rápidos de Ventas según la calificación (positivo vs. a mejorar). */
 export const POSITIVE_TAGS = [
-  'Amabilidad',
+  'Atención del asesor',
+  'Cordialidad',
   'Rapidez',
-  'Asesoramiento',
   'Claridad en la información',
-  'Instalaciones',
-  'Cumplimiento de plazos',
+  'Salón e instalaciones',
+  'Cumplimiento',
 ];
 
 export const IMPROVE_TAGS = [
   'Tiempo de espera',
-  'Atención recibida',
+  'Atención del asesor',
   'Información poco clara',
-  'Precio / Presupuesto',
+  'Precio / Financiación',
   'Demora en la entrega',
-  'Seguimiento posterior',
+  'Seguimiento',
 ];
 
 export function getTagsForRating(rating: number): string[] {
