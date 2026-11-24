@@ -1,0 +1,6 @@
+{
+  "name": "Concesionarios · Encuesta de Experiencia",
+  "description": "Terminal de encuestas para tablets y gestión de satisfacción por sucursal para concesionarios automotores.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

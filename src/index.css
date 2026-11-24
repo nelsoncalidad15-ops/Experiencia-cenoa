@@ -1,0 +1,137 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+@layer base {
+  html,
+  body {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    color: #0f172a;
+    background-color: #f8fafc;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+  }
+}
+
+/* ---------- Kiosco (modo tablet) ---------- */
+
+.kiosk-stage {
+  background: #05070d;
+  touch-action: manipulation;
+}
+
+.kiosk-glow {
+  background: radial-gradient(closest-side, rgba(var(--accent), 0.55), transparent 70%);
+  animation: kioskDrift 14s ease-in-out infinite alternate;
+}
+
+.kiosk-gold {
+  background: radial-gradient(closest-side, rgba(245, 185, 49, 0.35), transparent 70%);
+}
+
+.kiosk-grid {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 72px 72px;
+  transform: perspective(700px) rotateX(64deg);
+  transform-origin: center bottom;
+  mask-image: linear-gradient(to top, rgba(0, 0, 0, 0.8), transparent 85%);
+  -webkit-mask-image: linear-gradient(to top, rgba(0, 0, 0, 0.8), transparent 85%);
+}
+
+@keyframes kioskDrift {
+  from { transform: translate(0, 0) scale(1); }
+  to { transform: translate(4%, 30px) scale(1.08); }
+}
+
+@keyframes kioskEnter {
+  from { opacity: 0; transform: translateY(14px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.kiosk-enter {
+  animation: kioskEnter 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes kioskStarIn {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.kiosk-star {
+  animation: kioskStarIn 600ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes kioskStarChosen {
+  0% { transform: translateY(-4px) scale(1); }
+  40% { transform: translateY(-10px) scale(1.08); }
+  100% { transform: translateY(-4px) scale(1.03); }
+}
+
+.kiosk-star-chosen {
+  animation: kioskStarChosen 520ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes kioskDraw {
+  to { stroke-dashoffset: 0; }
+}
+
+.kiosk-check-circle {
+  stroke-dasharray: 152;
+  stroke-dashoffset: 152;
+  animation: kioskDraw 700ms cubic-bezier(0.65, 0, 0.45, 1) forwards;
+}
+
+.kiosk-check-path {
+  stroke-dasharray: 40;
+  stroke-dashoffset: 40;
+  animation: kioskDraw 420ms 600ms cubic-bezier(0.65, 0, 0.45, 1) forwards;
+}
+
+@keyframes kioskRipple {
+  from { transform: scale(1); opacity: 0.9; }
+  to { transform: scale(1.9); opacity: 0; }
+}
+
+.kiosk-ripple {
+  animation: kioskRipple 2.2s ease-out infinite;
+}
+
+@keyframes kioskProgress {
+  from { width: 100%; }
+  to { width: 0%; }
+}
+
+.kiosk-progress {
+  animation-name: kioskProgress;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-up {
+  animation: fadeUp 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
